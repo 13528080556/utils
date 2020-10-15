@@ -9,7 +9,7 @@ from email.header import Header
 from email.utils import parseaddr, formataddr
 
 """
-目前支持 163、qq 邮箱, 126邮箱未测试
+目前支持 126邮箱、163邮箱、qq邮箱, 
 使用前请先设置，发送邮箱及密码
 """
 
@@ -78,7 +78,7 @@ class SendEmailUtil:
         msg = MIMEMultipart()
         msg.attach(MIMEText(body, body_type, 'utf-8'))
         msg['from'] = cls.__format_addr(f'{nickname} <{sender}>')
-        msg['to'] = receiver
+        msg['to'] = ','.join(receiver) if isinstance(receiver, (list, tuple)) else receiver
         msg['subject'] = subject
         if enclosures:
             for enclosure in enclosures:
@@ -100,4 +100,4 @@ class SendEmailUtil:
 
 
 if __name__ == '__main__':
-    SendEmailUtil.run('example@gmail.com', '测试主题', '测试内容')
+    SendEmailUtil.run('609799548@qq.com', '测试主题', '测试内容')
