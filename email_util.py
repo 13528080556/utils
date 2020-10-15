@@ -53,7 +53,7 @@ class SendEmailUtil:
         smtp.login(sender, password)
 
     @classmethod
-    def _email_att(cls, enclosure):
+    def __email_att(cls, enclosure):
         base_types = ['.png', 'gif', '.jpg', '.jpeg']
         file_type = os.path.splitext(enclosure)[-1]
         filename = os.path.basename(enclosure)
@@ -82,7 +82,7 @@ class SendEmailUtil:
         msg['subject'] = subject
         if enclosures:
             for enclosure in enclosures:
-                msg.attach(cls._email_att(enclosure))
+                msg.attach(cls.__email_att(enclosure))
         return msg
 
     @classmethod
