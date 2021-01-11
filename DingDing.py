@@ -33,14 +33,14 @@ class DingDing:
         self.secret = secret
         self.access_token = access_token
 
-    def send_content(self, text, *at):
+    def send_content(self, text, *at, at_all=False):
         """
         :param text: 发送的内容
         :param at: 需要 @ 的手机号
         """
         timestamp, sign = self.generate_timestamp_sign()
         params = {'access_token': self.access_token, 'timestamp': timestamp, 'sign': sign}
-        data = {"msgtype": "text", "text": {"content": text}, "at": {"atMobiles": at, "isAtAll": False}}
+        data = {"msgtype": "text", "text": {"content": text}, "at": {"atMobiles": at, "isAtAll": at_all}}
         requests.post(DingDing.url, params=params, json=data)
 
 
