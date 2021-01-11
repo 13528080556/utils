@@ -37,6 +37,7 @@ class DingDing:
         """
         :param text: 发送的内容
         :param at: 需要 @ 的手机号
+        :param at_all: 是否需要 @ 所有人
         """
         timestamp, sign = self.generate_timestamp_sign()
         params = {'access_token': self.access_token, 'timestamp': timestamp, 'sign': sign}
