@@ -1,103 +1,121 @@
+# @Date  : 2021/3/9
+# @Author: Hugh
+# @Email : 609799548@qq.com
+
+"""
+使用例子
+e = Email(邮箱号, 授权码)
+e.send([收件人邮箱], subtype='邮件正文类型', subject='邮件主题', content='邮件内容', *files)
+"""
+
 import re
 import os
 import smtplib
 from email import encoders
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
 from email.header import Header
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
 from email.utils import parseaddr, formataddr
-
-"""
-目前支持 126邮箱、163邮箱、qq邮箱, 
-使用前请先设置，发送邮箱及密码
-"""
-
-defaults = {
-    'sender': '',
-    'password': '',
-    'nickname': ''
-}
+from email.mime.multipart import MIMEMultipart
 
 
-class SendEmailUtil:
+class Email:
 
-    __smtp_server_map = {
-        '126': 'smtp.126.com',
-        '163': 'smtp.163.com',
-        'qq': 'smtp.qq.com'
-    }
+    __re = re.compile(r'^\w+@(\w+)\.com$')
 
-    __re_email = re.compile(r'^\w+@(\w+)\.com$')
+    def __init__(self, from_address, password):
+        name, address = parseaddr(from_address)
+        self.__nickname = name
+        self.__address = address
+        self.__password = password
+        self.server = self.__get_smtp_server()
 
-    @classmethod
-    def __format_addr(cls, s: str):
+    def __get_smtp_server(self):
+        res = self.__re.match(self.__address)
+        if not res:
+            raise ValueError('{} 不符合 Email 格式'.format(self.__address))
+        target = 'smtp.' + res.group(1) + '.com'
+        print('连接 {} ...'.format(target))
+        server = smtplib.SMTP(target, 25)
+        # server.set_debuglevel(1)
+        return server
+
+    def __login(self):
+        self.server.login(self.__address, self.__password)
+
+    @staticmethod
+    def __format_addr(string):
+        name, address = parseaddr(string)
+        return formataddr((Header(name, 'utf-8').encode(), address))
+
+    def __format_from_address(self,):
         """
-        s example: "Hugh <example@163.com>"
+        from address(发件人邮箱地址):
+            - format_from_address('example@qq.com')
+            - format_from_address('<example@qq.com>')
+            - format_from_address('Hugh <example@qq.com>')
         """
-        name, addr = parseaddr(s)
-        return formataddr((Header(name, 'utf-8').encode(), addr))
+        return self.__format_addr('%s <%s>' % (self.__nickname, self.__address))
 
-    @classmethod
-    def __get_smtp_server(cls, sender: str):
-        re_res = cls.__re_email.match(sender)
-        if re_res:
-            smtp_server = cls.__smtp_server_map.get(re_res.group(1))
-            if smtp_server:
-                return smtp_server
-            raise ValueError(f'暂不支持 {re_res.group(1)} 邮箱!!!')
-        raise ValueError(f'{sender} 不符合Email格式!!!')
-    
-    @classmethod
-    def __login(cls, smtp, sender, password):
-        smtp.login(sender, password)
+    def __format_to_address(self, addresses):
+        """
+        to addresses(收件人邮箱地址):
+            - format_to_address(['example@qq.com', '<example@qq.com>', 'Hugh <example@qq.com>'])
+        """
+        return ','.join([self.__format_addr(address) for address in addresses])
 
-    @classmethod
-    def __email_att(cls, enclosure):
-        base_types = ['.png', 'gif', '.jpg', '.jpeg']
-        file_type = os.path.splitext(enclosure)[-1]
-        filename = os.path.basename(enclosure)
-        if file_type in base_types:
-            with open(enclosure, 'rb') as fp:
-                mime = MIMEBase('image', os.path.splitext(enclosure)[-1][1:], filename=filename)
-                mime.add_header('Content-Disposition', 'attachment', filename=filename)
-                mime.add_header('Content-ID', '<0>')
-                mime.add_header('X-Attachment-Id', '0')
-                mime.set_payload(fp.read())
-                encoders.encode_base64(mime)
-                return mime
-        else:
-            with open(enclosure, 'r', encoding='utf-8') as f:
-                mime = MIMEText(f.read(), 'base64', 'utf-8')
-                mime['Content-Type'] = "application/octet-stream"
-                mime['Content-Disposition'] = f'attachment; filename={filename}'
-                return mime
+    @staticmethod
+    def format_subject(subject):
+        """
+        subject(邮件主题):
+            - format_subject('邮件主题')
+        """
+        return Header(subject, 'utf-8').encode()
 
-    @classmethod
-    def __email_info(cls, sender, receiver, subject, body, body_type='plain', enclosures=None, nickname=''):
-        msg = MIMEMultipart()
-        msg.attach(MIMEText(body, body_type, 'utf-8'))
-        msg['from'] = cls.__format_addr(f'{nickname} <{sender}>')
-        msg['to'] = ','.join(receiver) if isinstance(receiver, (list, tuple)) else receiver
-        msg['subject'] = subject
-        if enclosures:
-            for enclosure in enclosures:
-                msg.attach(cls.__email_att(enclosure))
-        return msg
+    @staticmethod
+    def __attach_file(message, file_path, file_type):
+        """添加附件"""
+        suffix = os.path.splitext(file_path)[-1][1:]
+        filename = os.path.split(file_path)[-1]
+        with open(file_path, 'rb') as f:
+            mime = MIMEBase(file_type, suffix, filename=filename)
+            mime.add_header('Content-Disposition', 'attachment', filename=filename)
+            mime.set_payload(f.read())
+            encoders.encode_base64(mime)
+            message.attach(mime)
 
-    @classmethod
-    def run(cls, receiver, subject, body, enclosures=None,
-            sender=defaults['sender'], password=defaults['password'], nickname=defaults.get('nickname', '')):
-        msg = cls.__email_info(sender, receiver, subject, body, enclosures=enclosures, nickname=nickname)
-        smtp = smtplib.SMTP(cls.__get_smtp_server(sender))
+    def __format_message_from_to_subject(self, message, to_addresses, subject):
+        """格式化 message 的 from address、to addresses、subject"""
+        message['From'] = self.__format_from_address()
+        message['To'] = self.__format_to_address(to_addresses)
+        message['Subject'] = self.format_subject(subject)
+
+    def __generate_message_plain_html(self, to_addresses, subtype, subject, content):
+        """生成纯文本或者纯 html 邮件"""
+        message = MIMEText(content, subtype, 'utf-8')
+        self.__format_message_from_to_subject(message, to_addresses, subject)
+        return message
+
+    def __generate_message_multipart(self, to_addresses, subtype, subject, content, *files):
+        """生成可以携带文件的邮件"""
+        message = MIMEMultipart()
+        self.__format_message_from_to_subject(message, to_addresses, subject)
+        message.attach(MIMEText(content, subtype, 'utf-8'))  # 邮件正文
+        for _path, _type in files:
+            self.__attach_file(message, _path, _type)
+        return message
+
+    def send(self, to_addresses, subtype='plain', subject='邮件主题', content='邮件内容', *files):
+        """发送邮件"""
+        if isinstance(to_addresses, str):
+            to_addresses = [to_addresses]
         try:
-            cls.__login(smtp, sender, password)
-            smtp.sendmail(sender, receiver, msg.as_string())
-        except smtplib.SMTPAuthenticationError:
-            print(f'认证失败!!! --> "{sender}" "{password}"')
+            self.__login()
+            message = self.__generate_message_multipart(to_addresses, subtype, subject, content, *files)
+            self.server.sendmail(self.__address, to_addresses, message.as_string())
         finally:
-            smtp.quit()
+            self.server.quit()
 
 
 if __name__ == '__main__':
-    SendEmailUtil.run('609799548@qq.com', '测试主题', '测试内容')
+    e = Email('example@example.com', 'secret')
