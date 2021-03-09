@@ -48,7 +48,7 @@ class Email:
         name, address = parseaddr(string)
         return formataddr((Header(name, 'utf-8').encode(), address))
 
-    def __format_from_address(self,):
+    def __format_from_address(self):
         """
         from address(发件人邮箱地址):
             - format_from_address('example@qq.com')
